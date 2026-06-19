@@ -546,14 +546,17 @@ class PingPongGame:
     def update_paddles(self):
         # Update Left Paddle
         if self.game_mode == "TRAIN":
-            # Heuristic algorithm for left paddle (basic tracking)
+            # Heuristic for left paddle: only track ball when it is approaching (ball_dx < 0).
+            # Tracking at all times makes the opponent unrealistically perfect and skews training.
             bx, by = self.ball.get_coords()
-            px1, py1, px2, py2 = self.canvas.coords(self.paddle_left.rect_id)
-            py_mid = (py1 + py2) / 2.0
-            if by < py_mid - 15:
-                self.paddle_left.move(-self.paddle_left.speed, self.top_offset + 2, self.height - self.bottom_offset - 2)
-            elif by > py_mid + 15:
-                self.paddle_left.move(self.paddle_left.speed, self.top_offset + 2, self.height - self.bottom_offset - 2)
+            ball_dx = self.ball.dx
+            if ball_dx < 0:  # ball moving toward left paddle
+                px1, py1, px2, py2 = self.canvas.coords(self.paddle_left.rect_id)
+                py_mid = (py1 + py2) / 2.0
+                if by < py_mid - 15:
+                    self.paddle_left.move(-self.paddle_left.speed, self.top_offset + 2, self.height - self.bottom_offset - 2)
+                elif by > py_mid + 15:
+                    self.paddle_left.move(self.paddle_left.speed, self.top_offset + 2, self.height - self.bottom_offset - 2)
         else:
             if self.keys_pressed["w"]:
                 self.paddle_left.move(-self.paddle_left.speed, self.top_offset + 2, self.height - self.bottom_offset - 2)
@@ -577,6 +580,12 @@ class PingPongGame:
                 self.paddle_right.move(-self.paddle_right.speed, self.top_offset + 2, self.height - self.bottom_offset - 2)
             elif action == 2:  # DOWN
                 self.paddle_right.move(self.paddle_right.speed, self.top_offset + 2, self.height - self.bottom_offset - 2)
+            
+            # If paddle was blocked by boundary, the action effectively became STAY.
+            # Correct last_action so the Q-table records what actually happened.
+            ax1, ay1, ax2, ay2 = self.canvas.coords(self.paddle_right.rect_id)
+            if abs(ay1 - py1) < 0.5:  # paddle didn't actually move
+                self.last_action = 0  # correct to STAY
         else:
             if self.keys_pressed["up"]:
                 self.paddle_right.move(-self.paddle_right.speed, self.top_offset + 2, self.height - self.bottom_offset - 2)
@@ -817,8 +826,13 @@ class PingPongGame:
                 px1, py1, px2, py2 = self.canvas.coords(self.paddle_right.rect_id)
                 next_state_str = self.agent.get_state(bx, by, ball_dx, ball_dy, py1, self.paddle_height, self.width, self.height)
                 
-                # Shaping reward to encourage alignment
-                reward = -0.005 * abs(by - (py1 + self.paddle_height / 2.0)) / (self.height / 2.0)
+                # Shaping reward: penalise misalignment ONLY when ball is approaching (dx > 0).
+                # When ball moves away, still call update() with reward=0 so Q-values for
+                # those states converge via Bellman propagation instead of staying frozen at 0.0.
+                if ball_dx > 0:
+                    reward = -0.01 * abs(by - (py1 + self.paddle_height / 2.0)) / (self.height / 2.0)
+                else:
+                    reward = 0.0
                 self.agent.update(self.last_state, self.last_action, reward, next_state_str)
 
     def draw_telemetry(self):

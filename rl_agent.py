@@ -38,8 +38,8 @@ class RLAgent:
         bin_x = int(ball_x / max(10, screen_width / 8.0))
         bin_x = max(0, min(7, bin_x))
         
-        # Sign of ball velocities
-        dx_sign = 1 if ball_dx > 0 else -1
+        # Sign of ball velocities (3-value: 1=right, -1=left, 0=stationary)
+        dx_sign = 1 if ball_dx > 0 else (0 if ball_dx == 0 else -1)
         dy_sign = 1 if ball_dy > 0 else (-1 if ball_dy < 0 else 0)
         
         # State key representation
