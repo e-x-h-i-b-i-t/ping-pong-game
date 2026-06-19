@@ -599,13 +599,20 @@ class PingPongGame:
         r = self.ball.r
 
         # 1. Wall Collisions (Top border at Y=top_offset, Bottom border at HEIGHT-bottom_offset)
-        # Account for border thickness
         if by1 <= self.top_offset + 3 and self.ball.dy < 0:
             self.ball.dy = -self.ball.dy
-            self.spawn_particles(bx, by1 + 3, "#ccff00", count=6)
+            # Snap ball back inside the top border so high-speed balls don't clip through
+            overlap = (self.top_offset + 3) - by1
+            self.canvas.move(self.ball.rect_id, 0, overlap)
+            self.canvas.move(self.ball.glow_id, 0, overlap)
+            self.spawn_particles(bx, self.top_offset + 3, "#ccff00", count=6)
         elif by2 >= self.height - self.bottom_offset - 3 and self.ball.dy > 0:
             self.ball.dy = -self.ball.dy
-            self.spawn_particles(bx, by2 - 3, "#ccff00", count=6)
+            # Snap ball back inside the bottom border
+            overlap = by2 - (self.height - self.bottom_offset - 3)
+            self.canvas.move(self.ball.rect_id, 0, -overlap)
+            self.canvas.move(self.ball.glow_id, 0, -overlap)
+            self.spawn_particles(bx, self.height - self.bottom_offset - 3, "#ccff00", count=6)
 
         # 2. Paddle Collisions
         px1_l, py1_l, px2_l, py2_l = self.canvas.coords(self.paddle_left.rect_id)
