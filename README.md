@@ -2,7 +2,7 @@
 
 A polished, high-performance, neon-themed Ping-Pong game written in Python using `tkinter` and managed with `uv`.
 
-Now featuring an **AI Mode with Reinforcement Learning** that learns dynamically from matches against human players, alongside continuous self-play training, dynamic sizing presets, and customizable round limits.
+Now featuring an **AI Mode with Reinforcement Learning** that learns dynamically from matches against human players, alongside continuous self-play training and customizable round limits.
 
 ---
 
@@ -16,11 +16,6 @@ Now featuring an **AI Mode with Reinforcement Learning** that learns dynamically
 * **Continuous AI Self-Play Training**:
   - Headless-friendly training mode with up to 10x acceleration.
   - Automatically resets points back to `0 - 0` and serves immediately upon match completion to support unattended training loops.
-* **Dynamic Sizing & Resizing**:
-  - Fully responsive grid and canvas rendering. 
-  - Scales HUD, telemetry text, paddles, net, background elements, and velocities dynamically.
-  - Hotkey `V` cycles preset window sizes.
-  - Window manager resize callbacks (maximizing/minimizing) recalculate bounds on-the-fly.
 * **Customizable Round Limits**:
   - Choose between `3`, `5`, `10`, `15`, or `21` rounds dynamically in the start menu.
   - The default limit is **5 rounds**.

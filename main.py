@@ -124,7 +124,7 @@ class PingPongGame:
         x_coord = (screen_w - self.width) // 2
         y_coord = (screen_h - self.height) // 2
         self.root.geometry(f"{self.width}x{self.height}+{x_coord}+{y_coord}")
-        self.root.resizable(True, True)
+        self.root.resizable(False, False)
 
         # Dynamic Scaling factors
         self.paddle_width = max(15, int(self.width * 0.012))
@@ -255,7 +255,6 @@ class PingPongGame:
     def bind_events(self):
         self.root.bind("<KeyPress>", self.on_key_press)
         self.root.bind("<KeyRelease>", self.on_key_release)
-        self.root.bind("<Configure>", self.on_window_resize)
         
         # Exit binds (Escape or Q keys) via self.on_exit
         self.root.bind("<Escape>", lambda e: self.on_exit())
@@ -267,151 +266,10 @@ class PingPongGame:
         
         self.canvas.focus_set()
 
-    def on_window_resize(self, event):
-        # Ignore configure events triggered by child widgets (like the canvas)
-        if event.widget != self.root:
-            return
-            
-        # Ignore if dimensions did not actually change
-        if event.width == self.width and event.height == self.height:
-            return
-            
-        # Defensively check that components exist before doing updates
-        if not hasattr(self, 'paddle_left') or not hasattr(self, 'paddle_right') or not hasattr(self, 'ball') or not hasattr(self, 'net_id'):
-            return
-
-        old_width = self.width
-        old_height = self.height
-
-        self.width = event.width
-        self.height = event.height
-        
-        self.top_offset = int(self.height * 0.08)
-        self.bottom_offset = int(self.height * 0.04)
-        
-        self.canvas.config(width=self.width, height=self.height)
-
-        # Recalculate dynamic scaling factors
-        self.paddle_width = max(15, int(self.width * 0.012))
-        self.paddle_height = max(100, int(self.height * 0.2))
-        self.ball_radius = max(8, int(self.width * 0.008))
-        self.ball_base_speed = max(9.0, self.width / 140.0)
-        self.paddle_speed = max(10.0, self.height / 75.0)
-
-        # Get current relative paddle coordinates (fraction of old height)
-        p1_coords = self.canvas.coords(self.paddle_left.rect_id)
-        p2_coords = self.canvas.coords(self.paddle_right.rect_id)
-        
-        p1_rel_y = (p1_coords[1] / old_height) if p1_coords else 0.5
-        p2_rel_y = (p2_coords[1] / old_height) if p2_coords else 0.5
-
-        # Update home positions centered vertically within playable arena limits
-        self.p1_home_x = int(self.width * 0.05)
-        self.p2_home_x = int(self.width * 0.95) - self.paddle_width
-        self.p_home_y = self.top_offset + (self.height - self.top_offset - self.bottom_offset - self.paddle_height) // 2
-
-        # Re-map paddle Y coordinates based on fraction
-        p1_y = int(p1_rel_y * self.height)
-        p2_y = int(p2_rel_y * self.height)
-
-        # Clamp paddles inside active boundaries
-        p1_y = max(self.top_offset + 2, min(self.height - self.bottom_offset - 2 - self.paddle_height, p1_y))
-        p2_y = max(self.top_offset + 2, min(self.height - self.bottom_offset - 2 - self.paddle_height, p2_y))
-
-        # Apply resizing to paddle and ball objects
-        self.paddle_left.resize(self.p1_home_x, p1_y, self.paddle_width, self.paddle_height, self.paddle_speed)
-        self.paddle_right.resize(self.p2_home_x, p2_y, self.paddle_width, self.paddle_height, self.paddle_speed)
-
-        # Re-position ball: scale its current position if active, else put in center
-        if self.state == self.STATE_PLAYING and self.ball_active:
-            ball_coords = self.canvas.coords(self.ball.rect_id)
-            if ball_coords:
-                bx = (ball_coords[0] + ball_coords[2]) / 2.0
-                by = (ball_coords[1] + ball_coords[3]) / 2.0
-                
-                # Scale coordinate
-                new_bx = (bx / old_width) * self.width
-                new_by = (by / old_height) * self.height
-                
-                # Update velocity vectors dynamically based on speed multiplier
-                speed_ratio = self.ball_base_speed / self.ball.base_speed if self.ball.base_speed > 0 else 1.0
-                self.ball.dx *= speed_ratio
-                self.ball.dy *= speed_ratio
-                self.ball.resize(new_bx, new_by, self.ball_radius, self.ball_base_speed)
-        else:
-            self.ball.resize(self.width // 2, self.height // 2, self.ball_radius, self.ball_base_speed)
-
-        # Adjust background lines
-        self.canvas.coords(self.net_id, self.width // 2, self.top_offset, self.width // 2, self.height - self.bottom_offset)
-        self.canvas.coords(self.border_top_id, 20, self.top_offset, self.width - 20, self.top_offset)
-        self.canvas.coords(self.border_bottom_id, 20, self.height - self.bottom_offset, self.width - 20, self.height - self.bottom_offset)
-
-        # Scale background scores text
-        self.canvas.coords(self.bg_score_p1, self.width // 4, self.height // 2)
-        self.canvas.itemconfig(self.bg_score_p1, font=("Helvetica", -int(self.height * 0.22), "bold"))
-        self.canvas.coords(self.bg_score_p2, 3 * self.width // 4, self.height // 2)
-        self.canvas.itemconfig(self.bg_score_p2, font=("Helvetica", -int(self.height * 0.22), "bold"))
-
-        # Re-draw overlays if not playing
-        if self.state != self.STATE_PLAYING:
-            self.draw_overlay()
-        else:
-            # If playing, redraw telemetry bar to match new dimensions
-            if self.telemetry_ids:
-                for tid in self.telemetry_ids:
-                    self.canvas.delete(tid)
-                self.telemetry_ids.clear()
-                self.draw_telemetry()
-
-    def cycle_window_sizes(self):
-        # List of preset dimensions
-        presets = [(1000, 600), (1200, 800), (1400, 900), (1600, 1000)]
-        # Find next preset
-        current_dim = (self.width, self.height)
-        next_idx = 0
-        for idx, (w, h) in enumerate(presets):
-            if current_dim == (w, h):
-                next_idx = (idx + 1) % len(presets)
-                break
-        else:
-            # If current size doesn't match a preset, find the closest one and move to next
-            closest = min(presets, key=lambda p: abs(p[0] - self.width) + abs(p[1] - self.height))
-            next_idx = (presets.index(closest) + 1) % len(presets)
-            
-        new_w, new_h = presets[next_idx]
-        
-        # Center the window with the new dimensions
-        screen_w = self.root.winfo_screenwidth()
-        screen_h = self.root.winfo_screenheight()
-        x_coord = (screen_w - new_w) // 2
-        y_coord = (screen_h - new_h) // 2
-        
-        # Disable fullscreen if active
-        self.root.attributes("-fullscreen", False)
-        
-        # Apply geometry
-        self.root.geometry(f"{new_w}x{new_h}+{x_coord}+{y_coord}")
-        
-        # Update width/height explicitly
-        self.width = new_w
-        self.height = new_h
-        self.canvas.config(width=new_w, height=new_h)
-
-    def toggle_fullscreen(self):
-        is_fullscreen = self.root.attributes("-fullscreen")
-        self.root.attributes("-fullscreen", not is_fullscreen)
 
     def on_key_press(self, event):
         key = event.keysym.lower()
         
-        # Window size & fullscreen hotkeys
-        if key == "v":
-            self.cycle_window_sizes()
-            return
-        elif key == "f11" or key == "f":
-            self.toggle_fullscreen()
-            return
-            
         # If in start screen, capture menu selection keys
         if self.state == self.STATE_START:
             if key in ["w", "up"]:
@@ -995,7 +853,7 @@ class PingPongGame:
             )
             exit_inst = self.canvas.create_text(
                 self.width // 2, self.height * 0.88, 
-                text="CYCLE SIZE: V  |  FULLSCREEN: F  |  PRESS ESC OR 'Q' TO EXIT",
+                text="PRESS ESC OR 'Q' TO EXIT",
                 font=("Courier", -int(self.height * 0.019), "bold"), fill="#888888"
             )
             self.overlay_ids.extend([inst, exit_inst])
